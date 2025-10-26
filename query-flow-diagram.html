@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Chatbot Query Flow</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .diagram-container {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .legend {
+            background: #edf2f7;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .legend h3 {
+            margin-top: 0;
+            color: #2d3748;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        .color-frontend { background: #4299e1; }
+        .color-api { background: #48bb78; }
+        .color-rag { background: #ed8936; }
+        .color-ai { background: #9f7aea; }
+        .color-tools { background: #f56565; }
+        .color-db { background: #38b2ac; }
+
+        .key-points {
+            background: #fff5f5;
+            border-left: 4px solid #f56565;
+            padding: 15px 20px;
+            margin-top: 20px;
+            border-radius: 4px;
+        }
+        .key-points h3 {
+            margin-top: 0;
+            color: #c53030;
+        }
+        .key-points ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .key-points li {
+            margin: 8px 0;
+            color: #2d3748;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RAG Chatbot Query Flow</h1>
+        <p class="subtitle">Complete trace from user input to response display</p>
+
+        <div class="diagram-container">
+            <div class="mermaid">
+graph TD
+    %% Frontend Layer
+    A[👤 User Types Question<br/>'What is MCP?'] -->|Click Send| B[📱 Frontend: sendMessage]
+    B -->|Display| C[💬 Add User Message to UI]
+    C -->|Show| D[⏳ Display Loading Animation]
+    D -->|POST /api/query| E[🌐 HTTP Request<br/>query + session_id]
+
+    %% API Layer
+    E -->|Received| F[🚀 FastAPI: /api/query endpoint]
+    F -->|Check session| G{Session exists?}
+    G -->|No| H[🆕 Create session_1]
+    G -->|Yes| I[📋 Use existing session]
+    H --> J[🔧 Call rag_system.query]
+    I --> J
+
+    %% RAG System Layer
+    J -->|Get context| K[📜 Retrieve Conversation History]
+    K -->|Build prompt| L[🤖 Call ai_generator.generate_response]
+
+    %% AI Generator Layer
+    L -->|Prepare| M[📝 Build API Parameters<br/>+ System Prompt<br/>+ Tools Definition]
+    M -->|API Call| N[🧠 Claude API Call #1<br/>with search tool]
+    N -->|Response| O{Claude Decision}
+
+    %% Tool Execution Path
+    O -->|tool_use| P[🔍 Claude wants to search]
+    O -->|text| Q[💬 Direct answer<br/>no search needed]
+
+    P -->|Execute| R[⚙️ tool_manager.execute_tool<br/>search_course_content]
+    R -->|Search| S[🗄️ Vector Store Search]
+    S -->|Query ChromaDB| T[📊 ChromaDB<br/>Semantic Search]
+    T -->|Return chunks| U[📦 Format Results<br/>+ Track Sources]
+    U -->|Results| V[🧠 Claude API Call #2<br/>with search results]
+    V -->|Synthesize| W[✅ Final Answer Generated]
+
+    Q --> W
+
+    %% Back to RAG System
+    W -->|Return| X[📌 Get Sources from tool_manager]
+    X -->|Save| Y[💾 Update Conversation History]
+    Y -->|Return| Z[📤 Return answer + sources]
+
+    %% Back to API
+    Z -->|Build response| AA[📋 Create QueryResponse JSON]
+    AA -->|HTTP 200| AB[🌐 Send to Frontend]
+
+    %% Back to Frontend
+    AB -->|Receive| AC[📥 Parse JSON Response]
+    AC -->|Save| AD[💾 Store session_id]
+    AD -->|Remove| AE[❌ Hide Loading Animation]
+    AE -->|Display| AF[💬 Add Assistant Message<br/>Markdown Rendered]
+    AF -->|Show| AG[📚 Display Sources<br/>Collapsible Section]
+    AG --> AH[✨ User Sees Answer]
+
+    %% Styling
+    classDef frontend fill:#4299e1,stroke:#2c5282,color:#fff
+    classDef api fill:#48bb78,stroke:#276749,color:#fff
+    classDef rag fill:#ed8936,stroke:#9c4221,color:#fff
+    classDef ai fill:#9f7aea,stroke:#553c9a,color:#fff
+    classDef tools fill:#f56565,stroke:#9b2c2c,color:#fff
+    classDef db fill:#38b2ac,stroke:#234e52,color:#fff
+
+    class A,B,C,D,E,AC,AD,AE,AF,AG,AH frontend
+    class F,G,H,I,AA,AB api
+    class J,K,X,Y,Z rag
+    class L,M,N,O,V,W,Q ai
+    class P,R,U tools
+    class S,T db
+            </div>
+        </div>
+
+        <div class="legend">
+            <h3>Component Legend</h3>
+            <div class="legend-item">
+                <div class="legend-color color-frontend"></div>
+                <span><strong>Frontend Layer</strong> - User interface and HTTP communication (script.js)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color color-api"></div>
+                <span><strong>API Layer</strong> - FastAPI endpoints and request handling (app.py)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color color-rag"></div>
+                <span><strong>RAG System</strong> - Orchestrates the retrieval process (rag_system.py)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color color-ai"></div>
+                <span><strong>AI Generator</strong> - Claude API integration and tool handling (ai_generator.py)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color color-tools"></div>
+                <span><strong>Search Tools</strong> - Tool execution and result formatting (search_tools.py)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color color-db"></div>
+                <span><strong>Vector Database</strong> - ChromaDB semantic search (vector_store.py)</span>
+            </div>
+        </div>
+
+        <div class="key-points">
+            <h3>Key Flow Insights</h3>
+            <ul>
+                <li><strong>Two Claude API Calls:</strong> First to decide if search is needed, second to synthesize answer from results</li>
+                <li><strong>Session Persistence:</strong> Session IDs maintain conversation context across multiple queries</li>
+                <li><strong>Tool-Based RAG:</strong> Claude autonomously decides when to search vs. answer from knowledge</li>
+                <li><strong>Source Tracking:</strong> Search results include course/lesson metadata displayed to users</li>
+                <li><strong>Semantic Search:</strong> ChromaDB uses embeddings to find contextually relevant content</li>
+                <li><strong>History Management:</strong> Previous exchanges are stored and included in future prompts</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+</body>
+</html>
